@@ -11,6 +11,7 @@ export function renderHome(root) {
         <p class="lead">한라산부터 우도까지, 제주의 모습을 사진으로 둘러보고<br />마음에 드는 풍경은 로그인해서 즐겨찾기에 담아 보세요.</p>
         <div class="hero-btns">
           <a class="btn primary" href="#/places">제주 둘러보기</a>
+          <a class="btn ghost" href="#/3d">🏝️ 3D로 보기</a>
           <a class="btn ghost" href="#/login?tab=signup">무료 회원가입</a>
         </div>
       </div>

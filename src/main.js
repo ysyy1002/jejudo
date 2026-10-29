@@ -1,9 +1,12 @@
-import { store, subscribe, initAuth, signOut } from './state.js';
+import { store, subscribe, initAuth, signOut, cartCount } from './state.js';
 import { syncHearts, toast, esc } from './ui.js';
 import { renderHome } from './pages/home.js';
 import { renderPlaces } from './pages/places.js';
 import { renderLogin } from './pages/login.js';
 import { renderFavorites } from './pages/favorites.js';
+import { renderShop } from './pages/shop.js';
+import { renderCart } from './pages/cart.js';
+import { renderVisual3D } from './pages/visual3d.js';
 
 const app = document.getElementById('app');
 app.innerHTML = `
@@ -21,6 +24,9 @@ const ROUTES = {
   '/places': { render: renderPlaces },
   '/login': { render: renderLogin },
   '/favorites': { render: renderFavorites, protected: true },
+  '/3d': { render: renderVisual3D },
+  '/shop': { render: renderShop },
+  '/cart': { render: renderCart, protected: true },
 };
 
 function parseHash() {
@@ -32,13 +38,15 @@ function parseHash() {
 function renderNav() {
   const { path } = parseHash();
   const link = (href, label) => `<a href="#${href}" class="${path === href ? 'on' : ''}">${label}</a>`;
-  document.getElementById('links').innerHTML = link('/', '홈') + link('/places', '명소') + link('/favorites', '즐겨찾기');
+  document.getElementById('links').innerHTML = link('/', '홈') + link('/places', '명소') + link('/3d', '3D 제주') + link('/shop', '마켓') + link('/favorites', '즐겨찾기');
   const auth = document.getElementById('auth');
+  const n = store.user ? cartCount() : 0;
+  const cart = `<a class="cart-btn ${path === '/cart' ? 'on' : ''}" href="#/cart" aria-label="장바구니">🛒${n ? `<span class="badge">${n > 99 ? '99+' : n}</span>` : ''}</a>`;
   if (store.user) {
-    auth.innerHTML = `<span class="me" title="${esc(store.user.email)}">${esc(store.user.email.split('@')[0])}</span><button class="btn ghost small" id="logout">로그아웃</button>`;
+    auth.innerHTML = `${cart}<span class="me" title="${esc(store.user.email)}">${esc(store.user.email.split('@')[0])}</span><button class="btn ghost small" id="logout">로그아웃</button>`;
     auth.querySelector('#logout').onclick = async () => { await signOut(); toast('로그아웃했어요.', 'ok'); location.hash = '#/'; };
   } else {
-    auth.innerHTML = `<a class="btn ghost small" href="#/login">로그인</a><a class="btn primary small" href="#/login?tab=signup">회원가입</a>`;
+    auth.innerHTML = `${cart}<a class="btn ghost small" href="#/login">로그인</a><a class="btn primary small" href="#/login?tab=signup">회원가입</a>`;
   }
 }
 

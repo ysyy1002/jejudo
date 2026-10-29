@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
 
 // 앱 전체에서 공유하는 간단한 스토어 (로그인 사용자 + 즐겨찾기)
-export const store = { user: null, ready: false, favs: new Map(), favRows: [], favError: null };
+export const store = { user: null, ready: false, favs: new Map(), favRows: [], favError: null, cart: [], cartError: null };
 
 const subs = new Set();
 export const subscribe = (fn) => { subs.add(fn); return () => subs.delete(fn); };
@@ -12,8 +12,10 @@ async function setUser(user) {
   store.favs = new Map();
   store.favRows = [];
   store.favError = null;
+  store.cart = [];
+  store.cartError = null;
   emit();
-  if (user) await loadFavs();
+  if (user) await Promise.all([loadFavs(), loadCart()]);
   store.ready = true;
   emit();
 }
@@ -61,6 +63,55 @@ export async function toggleFav(img) {
   }
   emit();
   return { ok: true, added: !existing };
+}
+
+// ---------- 장바구니 ----------
+const CART_SELECT = 'id, product_id, quantity, products(id, name, description, price, emoji, image_url)';
+export const SHIPPING = { fee: 3000, freeOver: 30000 };
+
+export async function loadCart() {
+  const { data, error } = await supabase.from('cart_items').select(CART_SELECT).order('created_at', { ascending: true });
+  if (error) { store.cartError = error.message; return; }
+  store.cart = data;
+}
+export const cartCount = () => store.cart.reduce((n, i) => n + i.quantity, 0);
+export const cartSubtotal = () => store.cart.reduce((s, i) => s + i.quantity * (i.products?.price || 0), 0);
+export const shippingFee = () => (store.cart.length === 0 || cartSubtotal() >= SHIPPING.freeOver ? 0 : SHIPPING.fee);
+
+export async function addToCart(product) {
+  if (!store.user) return { needLogin: true };
+  const ex = store.cart.find((i) => i.product_id === product.id);
+  if (ex) return setQty(ex.id, ex.quantity + 1);
+  const { data, error } = await supabase.from('cart_items').insert({ product_id: product.id, quantity: 1 }).select(CART_SELECT).single();
+  if (error) return { error: error.message };
+  store.cart = [...store.cart, data];
+  emit();
+  return { ok: true };
+}
+export async function setQty(itemId, qty) {
+  const it = store.cart.find((i) => i.id === itemId);
+  if (!it) return {};
+  if (qty < 1) return removeItem(itemId);
+  if (qty > 99) return { error: '한 상품은 최대 99개까지 담을 수 있어요.' };
+  const { error } = await supabase.from('cart_items').update({ quantity: qty }).eq('id', itemId);
+  if (error) return { error: error.message };
+  it.quantity = qty;
+  emit();
+  return { ok: true };
+}
+export async function removeItem(itemId) {
+  const { error } = await supabase.from('cart_items').delete().eq('id', itemId);
+  if (error) return { error: error.message };
+  store.cart = store.cart.filter((i) => i.id !== itemId);
+  emit();
+  return { ok: true };
+}
+export async function clearCart() {
+  const { error } = await supabase.from('cart_items').delete().eq('user_id', store.user.id);
+  if (error) return { error: error.message };
+  store.cart = [];
+  emit();
+  return { ok: true };
 }
 
 // 로그인 직후 화면 이동 전에, 스토어에 사용자 정보가 반영될 때까지 잠깐 기다린다.
